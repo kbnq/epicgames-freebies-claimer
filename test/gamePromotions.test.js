@@ -1,21 +1,17 @@
 /* eslint-env mocha */
-/* globals expect */
 "use strict";
 
-import "chai/register-expect.js";
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import gamePromotions from "../src/gamePromotions.js";
-import { readFileSync } from "fs";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const { readFileSync } = require("fs");
+const { resolve } = require("path");
+const gamePromotions = require("../src/gamePromotions.js");
+const { expect } = require("chai");
 
 function readData(name, date = null) {
     let filename = name.replace("/", "_");
     if (date) {
         filename += `_${date}`;
     }
-    return JSON.parse(readFileSync(`${__dirname}/data/${filename}.json`).toString());
+    return JSON.parse(readFileSync(resolve(__dirname, "data", `${filename}.json`)).toString());
 }
 
 let client = {};
@@ -45,7 +41,7 @@ describe("freeGamesPromotions", () => {
             });
 
             expect(freeGames).to.deep.include({
-                "title":     "Hitman 2016",
+                "title":     "HITMAN",
                 "id":        "e8efad3d47a14284867fef2c347c321d",
                 "namespace": "3c06b15a8a2845c0b725d4f952fe00aa",
             });
