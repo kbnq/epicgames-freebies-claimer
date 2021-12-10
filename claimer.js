@@ -1,62 +1,40 @@
 "use strict";
 
-const { "Launcher": EpicGames } = require("epicgames-client");
-const { freeGamesPromotions } = require("./src/gamePromotions");
-const Logger = require("tracer").console(`${__dirname}/logger.js`);
 const { writeFile, writeFileSync, existsSync, readFileSync } = require("fs");
-
-const Auths = require(`${__dirname}/data/device_auths.json`);
-const CheckUpdate = require("check-update-github");
 if (!existsSync(`${__dirname}/data/config.json`)) {
     writeFileSync(`${__dirname}/data/config.json`, readFileSync(`${__dirname}/data/config.example.json`));
 }
+if (!existsSync(`${__dirname}/data/history.json`)) {
+    writeFileSync(`${__dirname}/data/history.json`, "{}");
+}
+
+const { "Launcher": EpicGames } = require("epicgames-client");
+const { freeGamesPromotions } = require(`${__dirname}/src/gamePromotions`);
+const { latestVersion } = require(`${__dirname}/src/latestVersion.js`);
+const Auths = require(`${__dirname}/data/device_auths.json`);
 const Config = require(`${__dirname}/data/config.json`);
 const Fork = require("child_process");
-if (!existsSync(`${__dirname}/data/history.json`)) {
-    try {
-        writeFileSync(`${__dirname}/data/history.json`, "{}");
-    } catch (err) {
-        Logger.error(`Failed to generate data/history.json file (${err})`);
-        process.exit(1);
-    }
-}
 const History = require(`${__dirname}/data/history.json`);
-const Package = require("./package.json");
+const Logger = require("tracer").console(`${__dirname}/logger.js`);
+const Package = require(`${__dirname}/package.json`);
 
-function isUpToDate() {
-    return new Promise((res, rej) => {
-        CheckUpdate({
-            "name":           Package.name,
-            "currentVersion": Package.version,
-            "user":           "revadike",
-            "branch":         "master",
-        }, (err, latestVersion) => {
-            if (err) {
-                rej(err);
-            } else {
-                res(latestVersion === Package.version);
-            }
-        });
-    });
-}
-
-function notify(appriseUrl, newlyClaimedPromos) {
-    if (!appriseUrl || newlyClaimedPromos.length === 0) {
+function appriseNotify(appriseUrl, notificationMessages) {
+    if (!appriseUrl || notificationMessages.length === 0) {
         return;
     }
 
-    let notification = newlyClaimedPromos.map((promo) => promo.title).join(", ");
+    let notification = notificationMessages.join("\n");
     try {
         let s = Fork.spawnSync("apprise", [
             "-vv",
             "-t",
-            "New freebies claimed on Epic Games Store",
+            `Epicgames Freebies Claimer ${Package.version}`,
             "-b",
             notification,
             appriseUrl,
         ]);
 
-        let output = s.stdout ? s.stdout.toString() : "ERROR: maybe apprise not found";
+        let output = s.stdout ? s.stdout.toString() : "ERROR: Maybe apprise not found?";
         if (output && output.includes("ERROR")) {
             Logger.error(`Failed to send push notification (${output})`);
         } else if (output) {
@@ -82,10 +60,17 @@ function sleep(delay) {
     let { options, delay, loop, appriseUrl } = Config;
 
     do {
-        if (!await isUpToDate()) {
-            Logger.warn(`There is a new version available: ${Package.url}`);
+        Logger.info(`Epicgames Freebies Claimer (${Package.version}) by ${Package.author.name || Package.author}`);
+
+        let latest = await latestVersion().catch((err) => {
+            Logger.error(`Failed to check for updates (${err})`);
+        });
+
+        if (latest && latest !== Package.version) {
+            Logger.warn(`There is a new release available (${latest}): ${Package.url}`);
         }
 
+        let notificationMessages = [];
         for (let email in Auths) {
             let { country } = Auths[email];
             let claimedPromos = History[email] || [];
@@ -94,8 +79,11 @@ function sleep(delay) {
             let rememberDevicesPath = `${__dirname}/data/device_auths.json`;
             let clientOptions = { email, ...options, rememberDevicesPath };
             let client = new EpicGames(clientOptions);
+
             if (!await client.init()) {
-                Logger.error("Error while initialize process.");
+                let errMess = "Error while initialize process.";
+                notificationMessages.push(errMess);
+                Logger.error(errMess);
                 break;
             }
 
@@ -107,18 +95,21 @@ function sleep(delay) {
 
             Logger.info(`Found ${unclaimedPromos.length} unclaimed freebie(s) for ${email}`);
             if (unclaimedPromos.length === 0) {
+                notificationMessages.push(`${email} has no unclaimed freebies`);
                 continue;
             }
 
             let success = await client.login({ useDeviceAuth }).catch(() => false);
             if (!success) {
-                Logger.error(`Failed to login as ${client.config.email}`);
+                let errMess = `Failed to login as ${email}`;
+                notificationMessages.push(errMess);
+                Logger.error(errMess);
                 continue;
             }
 
             Logger.info(`Logged in as ${client.account.name} (${client.account.id})`);
             Auths[email].country = client.account.country;
-            write(`${__dirname}/device_auths.json`, JSON.stringify(Auths, null, 4)).catch(() => false); // ignore fails
+            write(rememberDevicesPath, JSON.stringify(Auths, null, 4)).catch(() => false); // ignore fails
 
             for (let offer of unclaimedPromos) {
                 try {
@@ -133,23 +124,34 @@ function sleep(delay) {
                     offer.date = Date.now();
                     claimedPromos.push(offer);
                 } catch (err) {
+                    notificationMessages.push(`${email} failed to claim ${offer.title}`);
                     Logger.warn(`Failed to claim ${offer.title} (${err})`);
                     if (err.response
                         && err.response.body
                         && err.response.body.errorCode === "errors.com.epicgames.purchase.purchase.captcha.challenge") {
                         // It's pointless to try next one as we'll be asked for captcha again.
-                        Logger.error("Aborting!");
+                        let errMess = "Aborting! Captcha detected.";
+                        notificationMessages.push(errMess);
+                        Logger.error(errMess);
                         break;
                     }
                 }
             }
 
             History[email] = claimedPromos;
-            notify(appriseUrl, newlyClaimedPromos);
+
+            // Setting up notification message for current account
+            if (newlyClaimedPromos.length > 0) {
+                notificationMessages.push(`${email} claimed ${newlyClaimedPromos.length} freebies: ${
+                    newlyClaimedPromos.join(", ")}`);
+            } else {
+                notificationMessages.push(`${email} has claimed 0 freebies`);
+            }
 
             await client.logout();
             Logger.info(`Logged ${client.account.name} out of Epic Games`);
         }
+        appriseNotify(appriseUrl, notificationMessages);
 
         await write(`${__dirname}/data/history.json`, JSON.stringify(History, null, 4));
         if (loop) {

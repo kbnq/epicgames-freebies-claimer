@@ -5,7 +5,7 @@
 Claim [available free game promotions](https://www.epicgames.com/store/free-games) from the Epic Games Store.
 
 ## Requirements
- * [DeviceAuthGenerator](https://github.com/xMistt/DeviceAuthGenerator/releases)
+ * [DeviceAuthGenerator](https://github.com/jackblk/DeviceAuthGenerator/releases)
  * [Git](https://git-scm.com/downloads)
  * [Node.js](https://nodejs.org/download/) (with build tools checked)
 
@@ -13,7 +13,7 @@ Claim [available free game promotions](https://www.epicgames.com/store/free-game
 0. (Optional) ☆ Star this project :)
 1. Download/clone this repository
 2. Run `npm install`
-3. Generate `data/device_auths.json` (using [DeviceAuthGenerator](https://github.com/xMistt/DeviceAuthGenerator))
+3. Generate `data/device_auths.json` (using [DeviceAuthGenerator](https://github.com/jackblk/DeviceAuthGenerator))
 4. (Optional) Copy `data/config.example.json` to `data/config.json` and edit it
 5. Run `npm start`
 
@@ -32,8 +32,14 @@ Also, this is a good alternative, in case you don't like using Epic's client or 
 To which I will say, why not? Most of these games are actually outstanding games! Even if you don't like Epic and their shenanigans, you will be pleased to know that Epic actually funds all the free copies that are given away:  ["But we actually found it was more economical to pay developers [a lump sum] to distribute their game free for two weeks..."](https://arstechnica.com/gaming/2019/03/epic-ceo-youre-going-to-see-lower-prices-on-epic-games-store/)
 
 ## Changelog
+### V1.5.7
+ * Fixed breaking bug that occured with new offer type: edition (#159)
+ * Merged Apprise image to main for docker (#157)
+
 ### V1.5.6
  * Added optional Apprise notifications (#143)
+ * Improved update checking (#155)
+ * Improved docker integration
 
 ### V1.5.5
  * Fixed testing (#137)
