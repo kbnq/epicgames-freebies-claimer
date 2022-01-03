@@ -57,7 +57,7 @@ function sleep(delay) {
 }
 
 (async() => {
-    let { options, delay, loop, appriseUrl } = Config;
+    let { options, delay, loop, appriseUrl, notifyIfNoUnclaimedFreebies } = Config;
 
     do {
         Logger.info(`Epicgames Freebies Claimer (${Package.version}) by ${Package.author.name || Package.author}`);
@@ -95,7 +95,9 @@ function sleep(delay) {
 
             Logger.info(`Found ${unclaimedPromos.length} unclaimed freebie(s) for ${email}`);
             if (unclaimedPromos.length === 0) {
-                notificationMessages.push(`${email} has no unclaimed freebies`);
+                if (notifyIfNoUnclaimedFreebies) {
+                    notificationMessages.push(`${email} has no unclaimed freebies`);
+                }
                 continue;
             }
 
@@ -125,7 +127,7 @@ function sleep(delay) {
                     claimedPromos.push(offer);
                 } catch (err) {
                     notificationMessages.push(`${email} failed to claim ${offer.title}`);
-                    Logger.warn(`Failed to claim ${offer.title} (${err})`);
+                    Logger.error(`Failed to claim ${offer.title} (${err})`);
                     if (err.response
                         && err.response.body
                         && err.response.body.errorCode === "errors.com.epicgames.purchase.purchase.captcha.challenge") {
